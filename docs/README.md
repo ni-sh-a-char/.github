@@ -1,151 +1,251 @@
-# 📚 .github Repository – Documentation  
+# 📁 .github Repository  
+*No description provided.*
 
-> **Repository name:** `.github`  
-> **Description:** *None*  
-
-This repository is intended to hold shared GitHub configuration for an organization or a set of projects. It typically contains:
-
-- Issue and pull‑request templates  
-- Community health files (CODE_OF_CONDUCT, CONTRIBUTING, SECURITY, etc.)  
-- GitHub Actions workflows (CI/CD, linting, release automation, etc.)  
-- Funding and sponsorship files  
-- Other repository‑wide settings (e.g., `dependabot.yml`, `renovate.json`)
-
-Below you’ll find a complete guide on how to **install**, **use**, **extend**, and **example** configurations for this repository.
+> This repository contains shared GitHub configuration files (workflows, issue & pull‑request templates, funding files, etc.) that can be reused across multiple projects. The documentation below explains how to **install**, **use**, and **extend** the assets in this repo, along with an overview of the available **API** (inputs/outputs of the bundled GitHub Actions) and concrete **examples**.
 
 ---
 
 ## Table of Contents
 1. [Installation](#installation)  
 2. [Usage](#usage)  
-   - 2.1 [Adding the repository to a project](#adding-the-repository-to-a-project)  
-   - 2.2 [Enabling GitHub Actions workflows](#enabling-github-actions-workflows)  
-   - 2.3 [Customising templates & community files](#customising-templates--community-files)  
+   - 2.1 [Workflows](#workflows)  
+   - 2.2 [Issue & PR Templates](#issue--pr-templates)  
+   - 2.3 [Funding & Community Files](#funding--community-files)  
 3. [API Documentation](#api-documentation)  
-   - 3.1 [Workflow Dispatch API](#workflow-dispatch-api)  
-   - 3.2 [Repository‑wide Settings API](#repository-wide-settings-api)  
+   - 3.1 [Custom Actions](#custom-actions)  
+   - 3.2 [Reusable Workflow Inputs/Outputs](#reusable-workflow-inputsoutputs)  
 4. [Examples](#examples)  
-   - 4.1 [Typical CI workflow](#typical-ci-workflow)  
-   - 4.2 [Issue template for bug reports](#issue-template-for-bug-reports)  
-   - 4.3 [Dependabot configuration](#dependabot-configuration)  
-5. [Contributing & License](#contributing--license)  
+   - 4.1 [CI/CD Pipeline](#ci-cd-pipeline)  
+   - 4.2 [Automatic Release Draft](#automatic-release-draft)  
+   - 4.3 [Issue Triage Bot](#issue-triage-bot)  
+5. [Contributing](#contributing)  
+6. [License](#license)  
 
 ---
 
 ## Installation
 
-> The `.github` repository does **not** contain compiled code, so “installation” means **making its contents available to other repositories**.
+> The `.github` repository is **not** a library you `npm install` or `pip install`. Instead, you **import** its contents into another repository.
 
-| Method | When to use | Steps |
-|--------|-------------|-------|
-| **Git Submodule** | You want a single source of truth for all shared files across many repos. | 1. In the target repo: <br>`git submodule add https://github.com/your-org/.github .github` <br>2. Commit the submodule reference. <br>3. Run `git submodule update --init --recursive` after cloning. |
-| **GitHub Repository‑Level Inheritance** (recommended) | You want GitHub to automatically apply the files without extra git plumbing. | 1. Create a **public** or **private** repository named `.github` in the same organization/user. <br>2. Add the desired files (templates, workflows, etc.). <br>3. GitHub will automatically apply them to **all** repositories in that org/user that **do not** have a conflicting file. |
-| **Copy‑Paste / Sync Script** | You need a one‑off copy or want to keep a local fork. | 1. Clone the repo: `git clone https://github.com/your-org/.github.git` <br>2. Copy the needed files into your repo (e.g., `cp -r .github/.github/* .`). <br>3. Add them to version control. |
-| **GitHub CLI (`gh`)** | You prefer a CLI‑only workflow. | ```bash<br># Install the repo as a template (if it’s marked as a template)<br>gh repo create my-repo --template your-org/.github<br>``` |
+### 1️⃣ Add as a Git Submodule (recommended)
 
-### Prerequisites
-- A GitHub account with **write** permission on the target repository (or admin rights on the organization for inheritance).
-- Git ≥ 2.13 (for submodule support) or the **GitHub CLI** (`gh`) if you prefer that route.
-- (Optional) **Node.js** / **Python** / other runtimes if the workflows you import require them.
+```bash
+# From the root of the target repository
+git submodule add https://github.com/<ORG_OR_USER>/.github .github
+git submodule update --init --recursive
+```
+
+> **Tip:** Keep the submodule up‑to‑date with `git submodule update --remote`.
+
+### 2️⃣ Use the `actions/checkout` reusable workflow (GitHub‑only)
+
+If you only need the workflows, you can reference them directly without a submodule:
+
+```yaml
+# .github/workflows/ci.yml in your target repo
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    uses: <ORG_OR_USER>/.github/.github/workflows/ci.yml@main
+    with:
+      node-version: '20'
+```
+
+### 3️⃣ Copy‑Paste (quick‑start)
+
+```bash
+# Copy the whole folder (or selected files) into your repo
+cp -R .github/* /path/to/your/repo/.github/
+```
+
+> **Caution:** Manual copies won’t receive automatic updates. Use submodules or reusable workflows for long‑term maintenance.
 
 ---
 
 ## Usage
 
-### Adding the repository to a project
+### Workflows
 
-#### 1️⃣ Inheritance (no extra steps)
+All reusable workflows live under `.github/workflows/`. They are written as **reusable** workflows (i.e., `uses:` syntax) and can be called from any repository.
 
-If you have placed the `.github` repo at the organization level, GitHub will automatically:
+| Workflow | Purpose | Typical `with` inputs |
+|----------|---------|-----------------------|
+| `ci.yml` | Run tests, lint, and build | `node-version`, `python-version` |
+| `release.yml` | Draft a new GitHub Release | `tag`, `release-notes` |
+| `codeql-analysis.yml` | Security scanning with CodeQL | `language`, `upload-sarif` |
+| `docker-publish.yml` | Build & push Docker images | `image-name`, `registry`, `tags` |
 
-- Show the issue and PR templates when contributors open a new issue/PR.
-- Run any workflow files located under `.github/workflows/`.
-- Apply community health files (CODE_OF_CONDUCT, CONTRIBUTING, etc.) to the repository’s UI.
+#### Example: Calling a reusable workflow
 
-> **Tip:** You can override any inherited file by adding a file with the same path in the target repo. The local file wins.
+```yaml
+# .github/workflows/ci-caller.yml (in your repo)
+name: CI (caller)
 
-#### 2️⃣ Submodule approach
+on:
+  push:
+    branches: [main]
+  pull_request:
 
-```bash
-# From the root of your target repo
-git submodule add https://github.com/your-org/.github .github
-git commit -m "Add shared .github configuration as submodule"
-git push
+jobs:
+  ci:
+    uses: <ORG_OR_USER>/.github/.github/workflows/ci.yml@main
+    with:
+      node-version: '20'
+      python-version: '3.11'
 ```
 
-After cloning the target repo elsewhere:
+### Issue & PR Templates
 
-```bash
-git clone https://github.com/your-org/target-repo.git
-cd target-repo
-git submodule update --init --recursive   # pulls the .github files
+- **Issue templates** live in `.github/ISSUE_TEMPLATE/`.  
+- **Pull‑request template** lives in `.github/PULL_REQUEST_TEMPLATE.md`.
+
+To enable them, simply keep the files in the same location in your repository. GitHub will automatically surface them when users create new issues or PRs.
+
+#### Customizing a template
+
+```yaml
+# .github/ISSUE_TEMPLATE/bug_report.yml
+name: Bug report
+description: Report a bug in the project
+title: "[BUG] <short description>"
+labels: ["bug"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the sections below.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a clear set of steps.
+      placeholder: |
+        1. ...
+        2. ...
 ```
 
-> **Important:** GitHub Actions will still look for workflow files under `.github/workflows/` **relative to the repository root**, so you must either:
-- Keep the submodule at the repository root (`.github/`), **or**
-- Use a symlink (`ln -s .github/workflows .github/workflows`) (works on Linux/macOS runners).
+### Funding & Community Files
 
-### Enabling GitHub Actions workflows
+- `FUNDING.yml` – defines how contributors can sponsor the project.  
+- `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md` – standard community guidelines.
 
-All workflow files placed under `.github/workflows/` are automatically discovered by GitHub Actions. No extra configuration is required, but you may want to:
-
-- **Set repository secrets** (e.g., `GH_TOKEN`, `PYPI_PASSWORD`) via the repository Settings → Secrets → Actions.
-- **Adjust branch protection rules** to require status checks from the imported workflows.
-- **Enable/disable specific workflows** by adding a `if:` condition in the workflow YAML or by renaming the file with a `.disabled.yml` suffix.
-
-### Customising templates & community files
-
-| File | Purpose | How to customise |
-|------|---------|------------------|
-| `ISSUE_TEMPLATE/*.md` | Pre‑filled issue forms | Edit the markdown to add fields, checklists, or default labels. |
-| `PULL_REQUEST_TEMPLATE.md` | PR description scaffold | Add sections like “Motivation”, “Testing”, “Screenshots”. |
-| `CODE_OF_CONDUCT.md` | Community conduct guidelines | Replace the default text with your organization’s policy. |
-| `CONTRIBUTING.md` | How to contribute | Include steps for local setup, testing, and PR guidelines. |
-| `SECURITY.md` | Vulnerability reporting process | Provide a contact email or a link to a bug‑bounty program. |
-| `FUNDING.yml` | Sponsorship options | List GitHub Sponsors, OpenCollective, Patreon, etc. |
-
-> **Best practice:** Keep the files **generic** enough to be useful for many projects, but add placeholders (e.g., `{{PROJECT_NAME}}`) that can be replaced via a simple script or CI step if you need project‑specific values.
+Just keep these files at the repository root (or inside `.github/`) and GitHub will render them automatically.
 
 ---
 
 ## API Documentation
 
-While the `.github` repo itself does not expose a public API, the **GitHub REST & GraphQL APIs** can be used to programmatically manage the resources it provides (workflows, secrets, templates, etc.). Below are the most common endpoints you’ll interact with.
+> The term **API** here refers to the inputs/outputs of the **custom GitHub Actions** and **reusable workflows** shipped with this repo.
 
-### 1️⃣ Workflow Dispatch API
+### Custom Actions
 
-Trigger a workflow manually (useful for scheduled releases, nightly builds, etc.).
+| Action | Path | Description | Inputs | Outputs |
+|--------|------|-------------|--------|---------|
+| `setup-node` | `.github/actions/setup-node/` | Installs a specific Node.js version and caches `node_modules`. | `node-version` (string, required) | `cache-hit` (boolean) |
+| `docker-login` | `.github/actions/docker-login/` | Logs into Docker Hub / GitHub Container Registry. | `registry` (string, default: `ghcr.io`), `username`, `password` | — |
+| `release-notes` | `.github/actions/release-notes/` | Generates release notes from merged PR titles. | `from-tag`, `to-tag` | `notes` (string) |
 
-**Endpoint**  
-`POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches`
+#### Example: Using `setup-node`
 
-**Parameters**
+```yaml
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-| Name | Type | Description |
-|------|------|-------------|
-| `owner` | string | Repository owner (org or user). |
-| `repo` | string | Repository name. |
-| `workflow_id` | string or integer | The workflow file name (`ci.yml`) or its numeric ID. |
-| `ref` | string | The git reference (branch, tag, or SHA) to run the workflow on. |
-| `inputs` | object (optional) | Map of input names to values (must match `inputs:` defined in the workflow). |
-
-**Example (cURL)**
-
-```bash
-curl -X POST \
-  -H "Accept: application/vnd.github+json" \
-  -H "Authorization: token $GH_TOKEN" \
-  https://api.github.com/repos/your-org/your-repo/actions/workflows/ci.yml/dispatches \
-  -d '{"ref":"main","inputs":{"environment":"staging"}}'
+  - name: Set up Node.js
+    uses: ./.github/actions/setup-node
+    with:
+      node-version: '20'
 ```
 
-### 2️⃣ Repository‑wide Settings API
+### Reusable Workflow Inputs / Outputs
 
-Manipulate community health files, secrets, and other repo‑level settings.
+Reusable workflows expose **inputs** (via `with:`) and **outputs** (via `outputs:`). Below is a generic pattern used across the repo.
 
-| Feature | Endpoint | Method | Description |
-|---------|----------|--------|-------------|
-| **Create/Update a secret** | `/repos/{owner}/{repo}/actions/secrets/{secret_name}` | `PUT` | Store encrypted secrets for workflows. |
-| **List workflow runs** | `/repos/{owner}/{repo}/actions/runs` | `GET` | Retrieve recent workflow executions. |
-| **Get a file from the `.github` repo** | `/repos/{owner}/.github/contents/{path}` | `GET` | Fetch a template, workflow, or config file. |
-| **Update repository topics** | `/repos/{owner}/{repo}` | `PATCH` |
+```yaml
+# .github/workflows/ci.yml (excerpt)
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: true
+        type: string
+      python-version:
+        required: false
+        type: string
+    outputs:
+      test-status:
+        description: "Result of the test job (success/failure)"
+        value: ${{ jobs.test.result }}
+```
+
+When you call the workflow:
+
+```yaml
+jobs:
+  ci:
+    uses: <ORG_OR_USER>/.github/.github/workflows/ci.yml@main
+    with:
+      node-version: '20'
+    outputs:
+      test-status: ${{ steps.ci.outputs.test-status }}
+```
+
+---
+
+## Examples
+
+### 1️⃣ CI/CD Pipeline (Node + Python)
+
+```yaml
+# .github/workflows/ci.yml (in your repo)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    uses: <ORG_OR_USER>/.github/.github/workflows/ci.yml@main
+    with:
+      node-version: '20'
+      python-version: '3.11'
+```
+
+*What it does:*  
+- Installs Node 20 and Python 3.11.  
+- Caches dependencies.  
+- Runs `npm test`, `pytest`, and linting.  
+- Uploads test coverage as an artifact.
+
+---
+
+### 2️⃣ Automatic Release Draft
+
+```yaml
+# .github/workflows/release-draft.yml
+name: Draft Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # e.g., v1.2.3
+
+jobs:
+  draft:
+    uses: <ORG_OR_USER>/.github/.github/workflows/release.yml@main
+    with:
+      tag: ${{ github.ref_name }}
+      release-notes: ${{ steps.notes.outputs.notes }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+*Features:*  
+- Generates release notes from merged PR titles.  
+- Creates a **draft** release (editable before publishing).  
